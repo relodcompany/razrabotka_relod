@@ -1,0 +1,49 @@
+import time
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+
+from product_parser import parse_product_page
+
+SEARCH_URL = "https://www.gardners.com/Search/KeywordSubmit"
+
+def get_product_url_by_isbn(session, isbn):
+    payload = {
+        # Ищем внутри Books для точных ISBN-совпадений
+        "productType": "2",
+        "keyword": isbn.strip()
+    }
+    # Разрешаем редиректы, чтобы поймать и прямой переход на страницу товара
+    resp = session.post(SEARCH_URL, data=payload, allow_redirects=True)
+    resp.raise_for_status()
+
+    # Если мы сразу попали на страницу товара — просто возвращаем URL
+    if "/Product/" in resp.url:
+        return resp.url
+
+    # Иначе парсим страницу результатов и берём первую книгу
+    soup = BeautifulSoup(resp.text, "lxml")
+    first = soup.select_one("li.resultItem.book a.image")
+    if first and first.get("href"):
+        return urljoin(resp.url, first["href"])
+
+    return None
+
+def parse_by_isbn(session, isbn_list):
+    """
+    Принимает: selenium/requests session и список ISBN-ов.
+    Возвращает: список словарей с данными товаров.
+    """
+    results = []
+    for i, isbn in enumerate(isbn_list, start=1):
+        print(f"[{i}/{len(isbn_list)}] Поиск ISBN: {isbn}")
+        url = get_product_url_by_isbn(session, isbn)
+        if url:
+            try:
+                data = parse_product_page(session, url)
+                results.append(data)
+            except Exception as e:
+                print(f"  Ошибка парсинга: {e}")
+        else:
+            print("  Не найден редирект или продукт не найден.")
+        time.sleep(0.5)
+    return results
