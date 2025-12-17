@@ -1,0 +1,32 @@
+<?
+$MESS["ARTICLE"] = "Арт.";
+$MESS["S_ARTICLE_FILL"] = "Артикул";
+$MESS["BRAND"] = "Бренд:";
+$MESS["DISCOUNT_PRICE"] = "Цена без скидки:";
+$MESS["MORE_TEXT"] = "Мы свяжемся с вами для уточнения формы оплаты и способа доставки заказа";
+$MESS["SHARE_TEXT"] = "Поделиться";
+$MESS["S_ASK_QUESTION"] = "Задать вопрос";
+$MESS["S_ORDER_PRODUCT"] = "Заказать";
+$MESS["S_ORDER_SERVISE"] = "Заказать товар";
+$MESS["T_CHARACTERISTICS"] = "Характеристики";
+$MESS["T_DESC"] = "Описание";
+$MESS["T_DEV"] = "Разработчик продукта";
+$MESS["T_DOCS"] = "Документы";
+$MESS["T_FAQ"] = "FAQ";
+$MESS["T_ITEMS"] = "Товары";
+$MESS["T_SERVICES"] = "Услуги";
+$MESS["T_RECOMS"] = "Рекомендуем";
+$MESS["T_VIDEO"] = "Видео";
+$MESS['BUTTON_IN_CART'] = 'В корзине';
+$MESS['BUTTON_TO_CART'] = 'В корзину';
+$MESS['FIND_OUT_PRICE_REDUCTION_TEXT'] = 'Узнать о снижении цены';
+$MESS['MORE_CHAR_BOTTOM'] = 'Все характеристики';
+$MESS['MORE_TEXT_BOTTOM'] = 'Все описание';
+$MESS['S_CHOISE_PRODUCT'] = 'Выбрать';
+$MESS['VOTES_RESULT'] = 'Рейтинг #VALUE# из 5';
+$MESS['VOTES_RESULT_NONE'] = 'Нет отзывов';
+$MESS["ONE_REVIEW"] = "отзыв";
+$MESS["TWO_REVIEWS"] = "отзыва";
+$MESS["FIVE_REVIEWS"] = "отзывов";
+$MESS['TABLE_SIZES'] = 'Подбор размера';
+?>

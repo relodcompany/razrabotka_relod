@@ -1,0 +1,682 @@
+<?php
+if (!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED !== true) {
+    exit;
+}
+if(CModule::IncludeModule('logictim.balls')){
+	$APPLICATION->IncludeComponent(
+		"logictim:bonus.catalog",
+		"aspro_premier",
+		Array(
+			"COMPONENT_TEMPLATE" => ".default",
+			"COMPOSITE_FRAME_MODE" => "A",
+			"COMPOSITE_FRAME_TYPE" => "AUTO",
+			"ITEMS" => array("ITEMS"=>$arResult)
+		)
+	);}
+$this->setFrameMode(true);
+
+global $arTheme;
+use Bitrix\Main\Localization\Loc;
+
+$bOrderViewBasket = $arParams['ORDER_VIEW'];
+$basketURL = isset($arTheme['BASKET_PAGE_URL']) && strlen(trim($arTheme['BASKET_PAGE_URL']['VALUE'])) ? $arTheme['BASKET_PAGE_URL']['VALUE'] : SITE_DIR.'cart/';
+$dataItem = TSolution::getDataItem($arResult);
+$bOrderButton = $arResult['PROPERTIES']['FORM_ORDER']['VALUE_XML_ID'] == 'YES';
+$bAskButton = $arResult['PROPERTIES']['FORM_QUESTION']['VALUE_XML_ID'] == 'YES';
+$bOcbButton = $arParams['SHOW_ONE_CLICK_BUY'] != 'N';
+$cntVisibleChars = intval($arParams['VISIBLE_PROP_COUNT']) > 0 ? intval($arParams['VISIBLE_PROP_COUNT']) : 6;
+
+/* set array props for component_epilog */
+$templateData = [
+    'DETAIL_PAGE_URL' => $arResult['DETAIL_PAGE_URL'],
+    'ORDER' => $bOrderViewBasket,
+    'SKU' => [
+        'IBLOCK_ID' => $arParams['SKU_IBLOCK_ID'],
+        'VALUE' => $arResult['OFFERS'] ? array_column($arResult['OFFERS'], 'ID') : '',
+    ],
+    'PRODUCT_ANALOG' => ($arResult['PRODUCT_ANALOG'] ?? false),
+];
+
+$article = $arResult['DISPLAY_PROPERTIES']['CML2_ARTICLE']['VALUE'];
+
+$bShowRating = $arParams['SHOW_RATING'] == 'Y';
+$bShowCompare = $arParams['DISPLAY_COMPARE'] == 'Y';
+$bShowFavorit = $arParams['SHOW_FAVORITE'] == 'Y';
+$bShowCheaperForm = $arParams['SHOW_CHEAPER_FORM'] === 'Y' && !$arResult['PRODUCT_ANALOG'];
+$bPopupVideo = (bool) $arResult['POPUP_VIDEO'];
+$bShowCalculateDelivery = $arParams['CALCULATE_DELIVERY'] === 'Y' && !$arResult['PRODUCT_ANALOG'];
+$bShowSKUDescription = $arParams['SHOW_SKU_DESCRIPTION'] === 'Y';
+
+if ($bPopupVideo) {
+    $topGalleryClassList .= ' detail-gallery-big--with-video';
+}
+
+// unset($arResult['OFFERS']); // get correct totalCount
+$totalCount = TSolution\Product\Quantity::getTotalCount([
+    'ITEM' => $arResult,
+    'PARAMS' => $arParams,
+]);
+$arStatus = TSolution\Product\Quantity::getStatus([
+    'ITEM' => $arResult,
+    'PARAMS' => $arResult['HAS_SKU2'] ? array_merge($arParams, ['CATALOG_SHOW_AMOUNT_STORES' => 'N']) : $arParams,
+    'TOTAL_COUNT' => $totalCount,
+    'IS_DETAIL' => true,
+]);
+
+$templateData['USE_OFFERS_SELECT'] = false;
+
+/* sku replace start */
+$arCurrentOffer = $arResult['SKU']['CURRENT'];
+$elementName = !empty($arResult['IPROPERTY_VALUES']['ELEMENT_PAGE_TITLE']) ? $arResult['IPROPERTY_VALUES']['ELEMENT_PAGE_TITLE'] : $arResult['NAME'];
+
+if ($arCurrentOffer) {
+    $arResult['PARENT_IMG'] = '';
+    if ($arResult['PREVIEW_PICTURE']) {
+        $arResult['PARENT_IMG'] = $arResult['PREVIEW_PICTURE'];
+    } elseif ($arResult['DETAIL_PICTURE']) {
+        $arResult['PARENT_IMG'] = $arResult['DETAIL_PICTURE'];
+    }
+
+    $oid = Bitrix\Main\Config\Option::get(VENDOR_MODULE_ID, 'CATALOG_OID', 'oid');
+    if ($oid) {
+        $arResult['DETAIL_PAGE_URL'] .= '?'.$oid.'='.$arCurrentOffer['ID'];
+        $arCurrentOffer['DETAIL_PAGE_URL'] = $arResult['DETAIL_PAGE_URL'];
+    }
+    if ($arParams['SHOW_GALLERY'] === 'Y') {
+        if(!$arCurrentOffer['DETAIL_PICTURE'] && $arCurrentOffer['PREVIEW_PICTURE']) {
+            $arCurrentOffer['DETAIL_PICTURE'] = $arCurrentOffer['PREVIEW_PICTURE'];
+        }
+
+        $arOfferGallery = TSolution\Functions::getSliderForItem([
+            'TYPE' => 'catalog_block',
+            'PROP_CODE' => $arParams['OFFER_ADD_PICT_PROP'],
+            // 'ADD_DETAIL_SLIDER' => false,
+            'ITEM' => $arCurrentOffer,
+            'PARAMS' => $arParams,
+        ]);
+        if ($arOfferGallery) {
+            $arResult['GALLERY'] = array_merge($arOfferGallery, $arResult['GALLERY']);
+        }
+    } else {
+        if ($arCurrentOffer['PREVIEW_PICTURE'] || $arCurrentOffer['DETAIL_PICTURE']) {
+            if ($arCurrentOffer['PREVIEW_PICTURE']) {
+                $arResult['PREVIEW_PICTURE'] = $arCurrentOffer['PREVIEW_PICTURE'];
+            } elseif ($arCurrentOffer['DETAIL_PICTURE']) {
+                $arResult['PREVIEW_PICTURE'] = $arCurrentOffer['DETAIL_PICTURE'];
+            }
+        }
+    }
+    if (!$arCurrentOffer['PREVIEW_PICTURE'] && !$arCurrentOffer['DETAIL_PICTURE']) {
+        if ($arResult['PREVIEW_PICTURE']) {
+            $arCurrentOffer['PREVIEW_PICTURE'] = $arResult['PREVIEW_PICTURE'];
+        } elseif ($arResult['DETAIL_PICTURE']) {
+            $arCurrentOffer['PREVIEW_PICTURE'] = $arResult['DETAIL_PICTURE'];
+        }
+    }
+
+    if ($arCurrentOffer['DISPLAY_PROPERTIES']['CML2_ARTICLE']['VALUE'] || $arCurrentOffer['DISPLAY_PROPERTIES']['ARTICLE']['VALUE']) {
+        $article = $arCurrentOffer['DISPLAY_PROPERTIES']['CML2_ARTICLE']['VALUE'] ?? $arCurrentOffer['DISPLAY_PROPERTIES']['ARTICLE']['VALUE'];
+    }
+
+    $arResult['DISPLAY_PROPERTIES']['FORM_ORDER'] = $arCurrentOffer['DISPLAY_PROPERTIES']['FORM_ORDER'];
+    $arResult['DISPLAY_PROPERTIES']['PRICE'] = $arCurrentOffer['DISPLAY_PROPERTIES']['PRICE'];
+
+    if($arParams['SET_SKU_TITLE'] !== 'N') {
+        $elementName = $arCurrentOffer['NAME'];
+    }
+
+    $arResult['OFFER_PROP'] = TSolution::PrepareItemProps($arCurrentOffer['DISPLAY_PROPERTIES']);
+    TSolution\LinkableProperty::resolve($arResult['OFFER_PROP'], $arCurrentOffer['IBLOCK_ID'], $arResult['IBLOCK_SECTION_ID']);
+
+    $dataItem = TSolution::getDataItem($arCurrentOffer);
+
+    $totalCount = TSolution\Product\Quantity::getTotalCount([
+        'ITEM' => $arCurrentOffer,
+        'PARAMS' => $arParams,
+    ]);
+    $arStatus = TSolution\Product\Quantity::getStatus([
+        'ITEM' => $arCurrentOffer,
+        'PARAMS' => $arParams,
+        'TOTAL_COUNT' => $totalCount,
+        'IS_DETAIL' => true,
+    ]);
+}
+
+$status = $arStatus['NAME'];
+$statusCode = $arStatus['CODE'];
+/* sku replace end */
+?>
+
+<?if (TSolution::isSaleMode()):?>
+    <div class="basket_props_block" id="bx_basket_div_<?=$arResult['ID']; ?>" style="display: none;">
+        <?if (!empty($arResult['PRODUCT_PROPERTIES_FILL'])):?>
+            <?foreach ($arResult['PRODUCT_PROPERTIES_FILL'] as $propID => $propInfo):?>
+                <input type="hidden" name="<?=$arParams['PRODUCT_PROPS_VARIABLE']; ?>[<?=$propID; ?>]" value="<?=htmlspecialcharsbx($propInfo['ID']); ?>">
+                <?php
+                if (isset($arResult['PRODUCT_PROPERTIES'][$propID])) {
+                    unset($arResult['PRODUCT_PROPERTIES'][$propID]);
+                }
+                ?>
+            <?endforeach; ?>
+        <?endif; ?>
+        <?if ($arResult['PRODUCT_PROPERTIES']):?>
+            <div class="wrapper">
+                <?foreach($arResult['PRODUCT_PROPERTIES'] as $propID => $propInfo):?>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="form-group fill-animate">
+                                <?if(
+                                    $arResult['PROPERTIES'][$propID]['PROPERTY_TYPE'] == 'L'
+                                    && $arResult['PROPERTIES'][$propID]['LIST_TYPE'] == 'C'
+                                ):?>
+                                    <label class="font_14"><span><?=$arResult['PROPERTIES'][$propID]['NAME']; ?></span></label>
+                                    <?foreach($propInfo['VALUES'] as $valueID => $value):?>
+                                        <div class="form-radiobox">
+                                            <label class="form-radiobox__label">
+                                                <input class="form-radiobox__input" type="radio" name="<?=$arParams['PRODUCT_PROPS_VARIABLE']; ?>[<?=$propID; ?>]" value="<?=$valueID; ?>">
+                                                <span class="bx_filter_input_checkbox">
+                                                    <span><?=$value; ?></span>
+                                                </span>
+                                                <span class="form-radiobox__box"></span>
+                                            </label>
+                                        </div>
+                                    <?endforeach; ?>
+                                <?else:?>
+                                    <label class="font_14"><span><?=$arResult['PROPERTIES'][$propID]['NAME']; ?></span></label>
+                                    <div class="input">
+                                        <select class="form-control" name="<?=$arParams['PRODUCT_PROPS_VARIABLE']; ?>[<?=$propID; ?>]">
+                                            <?foreach($propInfo['VALUES'] as $valueID => $value):?>
+                                                <option value="<?=$valueID; ?>" <?= $valueID == $propInfo['SELECTED'] ? '"selected"' : ''; ?>><?=$value; ?></option>
+                                            <?endforeach; ?>
+                                        </select>
+                                    </div>
+                                <?endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                <?endforeach; ?>
+            </div>
+        <?endif; ?>
+    </div>
+<?endif; ?>
+
+<?// detail description?>
+<?$templateData['DETAIL_TEXT'] = boolval(strlen($arResult['DETAIL_TEXT'])); ?>
+<?if(strlen($arResult['DETAIL_TEXT'])):?>
+    <?$this->SetViewTarget('PRODUCT_DETAIL_TEXT_INFO'); ?>
+        <div class="content" itemprop="description">
+            <?=$arResult['DETAIL_TEXT']; ?>
+        </div>
+    <?$this->EndViewTarget(); ?>
+<?endif; ?>
+
+<?// props content?>
+<?$templateData['CHARACTERISTICS'] = boolval($arResult['CHARACTERISTICS']); ?>
+<?$templateData['HAS_CHARACTERISTICS'] = boolval($arResult['CHARACTERISTICS']); ?>
+<?if($arResult['CHARACTERISTICS']):?>
+    <?$this->SetViewTarget('PRODUCT_PROPS_INFO'); ?>
+    <?TSolution\Functions::showBlockHtml([
+        'FILE' => '/catalog/props_in_section.php',
+        'ITEM' => $arResult,
+        'PARAMS' => [
+            'GRUPPER_PROPS' => $arParams['GRUPPER_PROPS'],
+            'IBLOCK_ID' => $arResult['IBLOCK_ID'],
+            'IBLOCK_TYPE' => $arResult['IBLOCK_TYPE'],
+            'CHARACTERISTICS' => $arResult['CHARACTERISTICS'],
+            'SKU_IBLOCK_ID' => $arParams['SKU_IBLOCK_ID'],
+            'OFFER_PROP' => $arResult['OFFER_PROP'],
+            'SHOW_HINTS' => $arParams['SHOW_HINTS'],
+            'PROPERTIES_DISPLAY_TYPE' => $arParams['PROPERTIES_DISPLAY_TYPE'],
+        ],
+    ]); ?>
+    <?$this->EndViewTarget(); ?>
+<?endif; ?>
+
+<?ob_start(); ?>
+<?if ($arParams['SHOW_DISCOUNT_TIME'] === 'Y' && $arParams['SHOW_DISCOUNT_TIME_IN_LIST'] !== 'N'):?>
+        <?php
+        $discountDateTo = '';
+        if (TSolution::isSaleMode()) {
+            $arDiscount = TSolution\Product\Price::getDiscountByItemID($arResult['ID']);
+            $discountDateTo = $arDiscount ? $arDiscount['ACTIVE_TO'] : '';
+        } else {
+            $discountDateTo = $arResult['DISPLAY_PROPERTIES']['DATE_COUNTER']['VALUE'];
+        }
+?>
+        <?if ($discountDateTo):?>
+            <?TSolution\Functions::showDiscountCounter([
+                'ICONS' => true,
+                'DATE' => $discountDateTo,
+                'ITEM' => $arResult,
+            ]); ?>
+        <?endif; ?>
+    <?endif; ?>
+<?$itemDiscount = ob_get_clean(); ?>
+
+<?$this->SetViewTarget('PRODUCT_SIDE_INFO'); ?>
+    <?ob_start(); ?>
+    <div class="catalog-detail__buy-block" itemprop="offers" itemscope itemtype="http://schema.org/Offer" data-id="<?=$arResult['ID']; ?>"
+        data-item="<?=$dataItem; ?>"
+    >
+        <div class="grid-list grid-list--items gap gap--24">
+            <div class="grid-list grid-list--items gap gap--16">
+                <div>
+                    <?TSolution\Product\Common::showStickers([
+                        'TYPE' => '',
+                        'ITEM' => $arResult,
+                        'PARAMS' => $arParams,
+                        'DOP_CLASS' => 'sticker--static mb mb--8',
+                        'CONTENT' => $itemDiscount,
+                    ]); ?>
+                    <a href="<?=$arResult['DETAIL_PAGE_URL']; ?>" class="catalog-detail__title js-popup-title switcher-title font_20 dark_link"><?=$elementName; ?></a>
+                    <?TSolution\Product\Common::showSubTitle($arResult, 'font_14 mt mt--8');?>
+                </div>
+
+                <?if ($bShowRating || strlen($article)):?>
+                    <div class="catalog-detail__info-tech">
+                        <div class="line-block line-block--gap line-block--gap-12 line-block--row-gap line-block--row-gap-4 flexbox--wrap js-popup-info">
+                            <?// rating?>
+                            <?if ($bShowRating):?>
+                                <div class="line-block__item font_13">
+                                    <?=TSolution\Product\Common::getRatingHtml([
+                                        'ITEM' => $arResult,
+                                        'PARAMS' => $arParams,
+                                    ]); ?>
+                                </div>
+                                <div class="line-block__item font_13">
+                                    <?=TSolution\Product\Common::getReviewsCountHtml([
+                                        'ITEM' => $arResult,
+                                        'PARAMS' => $arParams,
+                                    ]); ?>
+                                </div>
+                            <?endif; ?>
+                            <?// article?>
+                            <?if (strlen($article)):?>
+                                <div class="line-block__item font_13 secondary-color">
+                                    <span class="article"><?=GetMessage('S_ARTICLE'); ?>&nbsp;<span
+                                            class="js-replace-article"
+                                            data-value="<?=$arResult['DISPLAY_PROPERTIES']['CML2_ARTICLE']['VALUE']; ?>"
+                                        ><?=$article; ?></span></span>
+                                </div>
+                            <?endif; ?>
+                            <div class="ml ml--auto">
+                                <?=TSolution\Product\Common::getActionIcons([
+                                    'ITEM' => $arCurrentOffer ?: $arResult,
+                                    'PARAMS' => $arParams,
+                                    'SHOW_FAVORITE' => $arParams['SHOW_FAVORITE'],
+                                    'SHOW_COMPARE' => $arParams['DISPLAY_COMPARE'],
+                                ]); ?>
+                            </div>
+                        </div>
+                    </div>
+                <?endif; ?>
+
+                <div class="border-bottom"></div>
+            </div>
+
+            <?if ($templateData['PRODUCT_ANALOG']):?>
+                <div class="grid-list__item">#<?=$templateData['PRODUCT_ANALOG']['MARKER'];?>#</div>
+            <?endif;?>
+
+            <?php
+            $arPriceConfig = [
+                'PRICE_CODE' => $arParams['PRICE_CODE'],
+                'PRICE_FONT' => 24,
+                'PRICEOLD_FONT' => 16,
+            ];
+
+            $prices = new TSolution\Product\Prices(
+                $arCurrentOffer ? $arCurrentOffer : $arResult,
+                $arParams,
+                [
+                    'PRICE_FONT' => 24,
+                    'PRICEOLD_FONT' => 15,
+                ]
+            );
+            ?>
+
+            <?if (!$arResult['PRODUCT_ANALOG']):?>
+                <div class="line-block line-block--gap line-block--gap-24 line-block--align-normal flexbox--wrap flexbox--justify-between visible-by-container-rule">
+                    <div class="line-block__item catalog-detail__price js-popup-price" data-price-config='<?=str_replace('\'', '"', CUtil::PhpToJSObject($arPriceConfig, false, true)); ?>'>
+                        <?$prices->show(); ?>
+                    </div>
+                </div>
+				<div class="lb_bonus lb_ajax_<?=$arResult["ID"]?>" data-item="<?=$arResult["ID"]?>"></div>
+            <?endif;?>
+
+            <?if ($arResult['SKU']['PROPS']):?>
+                <div class="catalog-block__offers1">
+                    <div
+                    class="sku-props sku-props--detail sku-props--reset-margin-top grid-list grid-list--items gap gap--24"
+                    data-site-id="<?=SITE_ID; ?>"
+                    data-item-id="<?=$arResult['ID']; ?>"
+                    data-iblockid="<?=$arResult['IBLOCK_ID']; ?>"
+                    data-offer-id="<?=$arCurrentOffer['ID']; ?>"
+                    data-offer-iblockid="<?=$arCurrentOffer['IBLOCK_ID']; ?>"
+                    data-offers-id='<?=str_replace('\'', '"', CUtil::PhpToJSObject($GLOBALS[$arParams['FILTER_NAME']]['OFFERS_ID'], false, true)); ?>'
+                    >
+                        <?=TSolution\SKU\Template::showSkuPropsHtml($arResult['SKU']['PROPS']);?>
+                    </div>
+                    <?php // table sizes?>
+                    <?if ($arResult['SIZE_PATH']):?>
+                        <div class="catalog-detail__pseudo-link catalog-detail__pseudo-link--with-gap table-sizes mt mt--8">
+                            <button type="button" class="btn--no-btn-appearance font_13 link-opacity-color link-opacity-color--hover"
+                                data-event="jqm"
+                                data-param-form_id="include_block"
+                                data-param-url="<?= $arResult['SIZE_PATH']; ?>"
+                                data-param-block_title="<?= urlencode(TSolution::formatJsName(GetMessage('TABLE_SIZES'))); ?>"
+                                data-name="include_block"
+                            >
+                                <span class="dotted"><?= GetMessage('TABLES_SIZE'); ?></span>
+                            </button>
+                        </div>
+                    <?endif; ?>
+                </div>
+            <?endif; ?>
+
+            <?if ($arResult['HAS_SKU2']):?>
+                <div class="catalog-detail__cart">
+                    <?=TSolution\Product\Basket::getMoreButton([
+                        'BTN_CLASS_MORE' => 'btn-elg btn-wide',
+                        'ITEM' => $arResult,
+                    ]); ?>
+                </div>
+            <?else:?>
+                <?php
+                $arBtnConfig = [
+                    'DETAIL_PAGE' => true,
+                    'BASKET_URL' => false,
+                    'BASKET' => $bOrderViewBasket,
+                    'ORDER_BTN' => $bOrderButton,
+                    'BTN_CLASS' => 'btn-elg btn-wide',
+                    'BTN_CLASS_MORE' => 'btn-elg btn-wide',
+                    'BTN_CLASS_SUBSCRIBE' => 'btn-elg btn-wide btn-transparent',
+                    'BTN_IN_CART_CLASS' => 'btn-elg btn-wide',
+                    'BTN_CALLBACK_CLASS' => 'btn-transparent-border',
+                    'BTN_OCB_CLASS' => 'btn-lg btn-wide btn-transparent-bg',
+                    'BTN_ORDER_CLASS' => 'btn-elg btn-wide btn-transparent-bg',
+                    'SHOW_COUNTER' => false,
+                    'ONE_CLICK_BUY' => $bOcbButton,
+                    'QUESTION_BTN' => $bAskButton,
+                    'DISPLAY_COMPARE' => $arParams['DISPLAY_COMPARE'],
+                    'CATALOG_IBLOCK_ID' => $arResult['IBLOCK_ID'],
+                    'ITEM_ID' => $arResult['ID'],
+                ];
+
+                $arBasketConfig = TSolution\Product\Basket::getOptions(array_merge(
+                    $arBtnConfig,
+                    [
+                        'ITEM' => ($arCurrentOffer ? $arCurrentOffer : $arResult),
+                        'PARAMS' => $arParams,
+                        'TOTAL_COUNT' => $totalCount,
+                        'HAS_PRICE' => $prices->isGreaterThanZero(),
+                        'EMPTY_PRICE' => $prices->isEmpty(),
+                        'IS_OFFER' => (bool)$arCurrentOffer,
+                    ]
+                ));
+                ?>
+
+                <div class="catalog-detail__cart js-replace-btns js-config-btns<?= $arBasketConfig['HTML'] ? '' : ' hidden'; ?>" data-btn-config='<?=str_replace('\'', '"', CUtil::PhpToJSObject($arBtnConfig, false, true)); ?>'>
+                    <?=$arBasketConfig['HTML']; ?>
+                </div>
+            <?endif; ?>
+        </div>
+    </div>
+
+    <?=$buyBlockHtml = ob_get_clean(); ?>
+<?$this->EndViewTarget(); ?>
+
+<div class="flex-1">
+    <div class="catalog-detail__top-info flexbox flexbox--direction-row flexbox--wrap-nowrap">
+        <?php
+        // add to viewed
+        TSolution\Product\Common::addViewed([
+            'ITEM' => $arCurrentOffer ?: $arResult,
+        ]);
+        ?>
+
+        <?php // meta?>
+        <meta itemprop="name" content="<?=$name = strip_tags($elementName); ?>" />
+        <link itemprop="url" href="<?=$arResult['DETAIL_PAGE_URL']; ?>" />
+        <meta itemprop="category" content="<?=$arResult['CATEGORY_PATH']; ?>" />
+        <meta itemprop="description" content="<?= strlen(strip_tags($arResult['PREVIEW_TEXT'])) ? strip_tags($arResult['PREVIEW_TEXT']) : (strlen(strip_tags($arResult['DETAIL_TEXT'])) ? strip_tags($arResult['DETAIL_TEXT']) : $name); ?>" />
+        <meta itemprop="sku" content="<?=$arResult['ID']; ?>" />
+
+        <?if ($arResult['SKU_CONFIG']):?><div class="js-sku-config" data-value='<?=str_replace('\'', '"', CUtil::PhpToJSObject($arResult['SKU_CONFIG'], false, true)); ?>'></div><?endif; ?>
+        <?if ($arResult['SKU']['PROPS']):?>
+            <template class="offers-template-json">
+                <?=TSolution\SKU::getOfferTreeJson($arResult['SKU']['OFFERS']); ?>
+            </template>
+            <?$templateData['USE_OFFERS_SELECT'] = true; ?>
+        <?endif; ?>
+
+        <div class="detail-gallery-big swipeignore image-list__link">
+            <div class="detail-gallery-big-inner gap gap--20">
+                <div class="detail-gallery-big-wrapper <?=$topGalleryClassList; ?>">
+                    <?php if($bPopupVideo): ?>
+                        <div class="video-block popup_video">
+                            <a class="video-block__play video-block__play--circle various video_link image dark-color" href="<?=$arResult['POPUP_VIDEO']; ?>" title="<?=Loc::getMessage('VIDEO'); ?>"></a>
+                        </div>
+                    <?php endif; ?>
+                    <?php
+                    $countPhoto = count($arResult['GALLERY']);
+                    $arFirstPhoto = reset($arResult['GALLERY']);
+                    $urlFirstPhoto = $arFirstPhoto['BIG']['src'] ? $arFirstPhoto['BIG']['src'] : $arFirstPhoto['SRC'];
+                    ?>
+                                        <?php
+                    $gallerySetting = [
+                        'SLIDE_CLASS_LIST' => 'detail-gallery-big__item detail-gallery-big__item--big swiper-slide toggle-white-grey-bg',
+                        'PLUGIN_OPTIONS' => [
+                            'direction' => 'horizontal',
+                            'init' => false,
+                            'keyboard' => [
+                                'enabled' => true,
+                            ],
+                            // 'loop' => ($countPhoto > 1 ? true : false),
+                            'pagination' => [
+                                'enabled' => true,
+                                'el' => '#fast_view_item .swiper-pagination',
+                            ],
+                            'slidesPerView' => 1,
+                            // 'thumbs' => [
+                            // 	'swiper' => '.gallery-slider-thumb',
+                            // ],
+                            'type' => 'detail_gallery_main',
+                        ],
+                    ];
+                    ?>
+
+                    <link href="<?=$urlFirstPhoto; ?>" itemprop="image"/>
+                    <div class="detail-gallery-big-slider big js-detail-img swiper slider-solution"
+                            data-slide-class-list="<?= $gallerySetting['SLIDE_CLASS_LIST']; ?>"
+                            <?php if (isset($gallerySetting['PLUGIN_OPTIONS']) && count($gallerySetting['PLUGIN_OPTIONS'])): ?>
+                            data-plugin-options='<?= Bitrix\Main\Web\Json::encode($gallerySetting['PLUGIN_OPTIONS']); ?>'
+                            <?php endif; ?>
+                        >
+                        <?if($countPhoto):?>
+                            <div class="detail-gallery-big-slider__wrapper swiper-wrapper">
+                                <?foreach ($arResult['GALLERY'] as $i => $arImage): ?>
+                                    <?$url = $arImage['BIG']['src'] ? $arImage['BIG']['src'] : $arImage['SRC']; ?>
+                                    <div id="big-photo-<?=$i; ?>" class="<?= $gallerySetting['SLIDE_CLASS_LIST']; ?>">
+                                        <a href="<?=$url; ?>" data-fancybox="gallery_fast_view" class="detail-gallery-big__link popup_link fancy fancy-thumbs" title="<?=$arImage['TITLE']; ?>">
+                                            <img class="detail-gallery-big__picture" loading="lazy" decoding="async" src="<?=$url; ?>" alt="<?=$arImage['ALT']; ?>"/>
+                                        </a>
+                                    </div>
+                                <?endforeach; ?>
+                            </div>
+
+                            <?if ($bSlider):?>
+                                <?TSolution\Functions::showBlockHtml([
+                                    'FILE' => 'ui/slider-navigation.php',
+                                    'PARAMS' => [
+                                        'CLASSES' => 'slider-nav',
+                                    ],
+                                ]); ?>
+                            <?endif; ?>
+                        <?else:?>
+                            <div class="detail-gallery-big__item detail-gallery-big__item--big detail-gallery-big__item--no-image swiper-slide toggle-white-grey-bg">
+                                    <span class="detail-gallery-big__link">
+                                        <img class="detail-gallery-big__picture" src="<?=SITE_TEMPLATE_PATH.'/images/svg/noimage_product.svg'; ?>" data-src=""/>
+                                    </span>
+                                </div>
+                        <?endif; ?>
+                    </div>
+
+                    <?TSolution\Functions::showBlockHtml([
+                        'FILE' => 'ui/slider-pagination.php',
+                        'PARAMS' => [
+                            'CLASSES' => 'swiper-pagination--bottom pt pt--8 swiper-pagination--short swiper-pagination--dark-light',
+                        ],
+                    ]); ?>
+                </div>
+                <div class="btn-wrapper">
+                    <a href="<?=$arResult['DETAIL_PAGE_URL']; ?>" class="flexbox flexbox--direction-row flexbox--justify-center flexbox--align-center gap gap--12 js-replace-more no-decoration stroke-dark-light-block font_15" title="<?=Loc::getMessage('MORE_TEXT_ITEM'); ?>">
+                        <span><?=Loc::getMessage('MORE_TEXT_ITEM'); ?></span>
+                        <?=TSolution::showSpriteIconSvg(SITE_TEMPLATE_PATH.'/images/svg/arrows.svg#right-16-16', '', [
+                            'WIDTH' => 16,
+                            'HEIGHT' => 16,
+                        ]); ?>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="catalog-detail__main scrollbar">
+            <div class="catalog-detail__main-wrapper gap gap--24">
+                <?=$buyBlockHtml; ?>
+
+                <?if (!$arResult['PRODUCT_ANALOG']):?>
+                    <div class="catalog-detail__forms grid-list grid-list--items font_14">
+                        <?// status?>
+                        <?if (strlen($status)):?>
+                            <div class="grid-list__item">
+                                <?TSolution\Product\Quantity::show(
+                                    $statusCode,
+                                    $status,
+                                    [
+                                        'USE_SHEMA_ORG' => false,
+                                        'IS_DETAIL' => true,
+                                    ]
+                                ); ?>
+                            </div>
+                        <?endif; ?>
+
+                        <?php // calculate delivery?>
+                        <?if (
+                            $bShowCalculateDelivery
+                            && !$arResult['HAS_SKU2']
+                        ):?>
+                            <div class="grid-list__item">
+                            <?php
+                            $arConfig = [
+                                'NAME' => $arParams['EXPRESSION_FOR_CALCULATE_DELIVERY'],
+                                'SVG_NAME' => 'delivery',
+                                'SVG_SIZE' => ['WIDTH' => 16, 'HEIGHT' => 15],
+                                'SVG_PATH' => '/catalog/item_order_icons.svg#delivery',
+                                'WRAPPER' => 'stroke-dark-light-block animate-load',
+                                'DATA_ATTRS' => [
+                                    'event' => 'jqm',
+                                    'param-form_id' => 'delivery',
+                                    'name' => 'delivery',
+                                    'param-product_id' => $arCurrentSKU ? $arCurrentSKU['ID'] : $arResult['ID'],
+                                ],
+                            ];
+
+                            if ($arParams['USE_REGION'] === 'Y' && $arParams['STORES'] && is_array($arParams['STORES'])) {
+                                $arConfig['DATA_ATTRS']['param-region_stores_id'] = implode(',', $arParams['STORES']);
+                            }
+                            ?>
+                            <?= TSolution\Product\Common::showModalBlock($arConfig); ?>
+                            <?php unset($arConfig); ?>
+                            </div>
+                        <?endif; ?>
+                    </div>
+                <?endif;?>
+
+                <?$cntChars = count($arResult['CHARACTERISTICS']) + count((array)$arResult['OFFER_PROP']);?>
+                <?TSolution\Functions::showBlockHtml([
+					'FILE' => '/catalog/props_in_section.php',
+					'ITEM' => $arResult,
+					'PARAMS' => [
+						'WRAPPER_CLASSES' => 'mt mt--8',
+                        'FONT_CLASSES' => 'font_13',
+                        'TEXT_CLASSES' => 'secondary-color',
+                        'GAP_SIZE' => '6',
+                        'SHOW_HINTS' => $arParams['SHOW_HINTS'],
+					],
+				]);?>
+
+                <?$bSKUPreviewDescription = $bShowSKUDescription && strlen($arResult['SKU']['CURRENT']['PREVIEW_TEXT']); ?>
+                <?$showPreviewText = boolval(strlen($arResult['PREVIEW_TEXT']) || $bSKUPreviewDescription); ?>
+                <?if($showPreviewText):?>
+                    <div class="catalog-detail__previewtext" itemprop="description">
+                        <div class="text-block font_13 lineclamp-4 no-margin-p js-preview-description">
+                            <?if($bSKUPreviewDescription):?>
+                                <?=$arResult['SKU']['CURRENT']['PREVIEW_TEXT']; ?>
+                            <?else:?>
+                                <?=$arResult['PREVIEW_TEXT']; ?>
+                            <?endif; ?>
+                        </div>
+                    </div>
+                <?endif; ?>
+
+                <?if ($arResult['BRAND_ITEM'] && $arResult['BRAND_ITEM']['IMAGE']):?>
+                    <div class="brand-detail flexbox line-block--gap line-block--gap-12">
+                        <div class="brand-detail-info">
+                            <div class="brand-detail-info__image rounded-x">
+                                <a href="<?=$arResult['BRAND_ITEM']['DETAIL_PAGE_URL']; ?>">
+                                    <img src="<?=$arResult['BRAND_ITEM']['IMAGE']['src']; ?>" alt="<?=$arResult['BRAND_ITEM']['NAME']; ?>" title="<?=$arResult['BRAND_ITEM']['NAME']; ?>" itemprop="image">
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="brand-detail-info__preview line-block line-block--gap line-block--gap-8 flexbox--wrap font_14">
+                            <div class="line-block__item">
+                                <a class="chip chip--transparent bordered" href="<?=$arResult['BRAND_ITEM']['DETAIL_PAGE_URL']; ?>" target="_blank">
+                                    <span class="chip__label"><?=GetMessage('ITEMS_BY_BRAND', ['#BRAND#' => $arResult['BRAND_ITEM']['NAME']]); ?></span>
+                                </a>
+                            </div>
+                            <?if($arResult['SECTION']):?>
+                                <div class="line-block__item">
+                                    <a class="chip chip--transparent bordered" href="<?= $arResult['BRAND_ITEM']['CATALOG_PAGE_URL']; ?>" target="_blank">
+                                        <span class="chip__label"><?=GetMessage('ITEMS_BY_SECTION'); ?></span>
+                                    </a>
+                                </div>
+                            <?endif; ?>
+                        </div>
+                    </div>
+                <?endif; ?>
+            </div>
+        </div>
+    </div>
+    <script type="text/javascript">
+        var navs = $('#popup_iframe_wrapper .navigation-wrapper-fast-view .fast-view-nav');
+        if(navs.length) {
+            var ajaxData = {
+                element: "<?=$arResult['ID']; ?>",
+                iblock: "<?=$arParams['IBLOCK_ID']; ?>",
+                section: "<?=$arResult['IBLOCK_SECTION_ID']; ?>",
+            };
+
+            if($('.smart-filter-filter').length && $('.smart-filter-filter').text().length) {
+                try {
+                    var text = $('.smart-filter-filter').text().replace(/var filter\s*=\s*/g, '');
+                    JSON.parse(text);
+                    ajaxData.filter = text;
+                }
+                catch (e) {}
+            }
+
+            if($('.smart-filter-sort').length && $('.smart-filter-sort').text().length) {
+                try {
+                    var text = $('.smart-filter-sort').text().replace(/var sort\s*=\s*/g, '');
+                    JSON.parse(text);
+                    ajaxData.sort = text;
+                }
+                catch (e) {}
+            }
+
+            navs.data('ajax', ajaxData);
+        }
+    </script>
+</div>

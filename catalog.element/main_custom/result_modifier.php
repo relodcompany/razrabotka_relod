@@ -1,0 +1,474 @@
+<?
+if (!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED !== true) die();
+
+$arParams['DISPLAY_COMPARE'] = $arParams['DISPLAY_COMPARE'] ? 'Y' : 'N';
+$arParams['VISIBLE_PROP_COUNT'] = (intval($arParams['VISIBLE_PROP_COUNT'])) > 0 ? intval($arParams['VISIBLE_PROP_COUNT']) : 6;
+
+/* category path */
+if (
+	$arResult['IBLOCK_SECTION_ID'] &&
+	!$arResult['CATEGORY_PATH']
+) {
+	$arCategoryPath = array();
+	if (isset($arResult['SECTION']['PATH'])) {
+		foreach ($arResult['SECTION']['PATH'] as $arCategory) {
+			$arCategoryPath[$arCategory['ID']] = $arCategory['NAME'];
+		}
+	}
+
+	$arResult['CATEGORY_PATH'] = implode('/', $arCategoryPath);
+}
+
+if (
+    ($arResult['PROPERTIES']['OUT_OF_PRODUCTION']['VALUE'] ?? 'N') === 'Y'
+    && !empty($arResult['PROPERTIES']['PRODUCT_ANALOG']['VALUE'])
+) {
+    $arResult['PRODUCT_ANALOG'] = [
+        'ID' => $arResult['PROPERTIES']['PRODUCT_ANALOG']['VALUE'],
+        'IBLOCK_ID' => $arResult['PROPERTIES']['PRODUCT_ANALOG']['LINK_IBLOCK_ID'],
+        'MARKER' => strtoupper(TSolution::templateName).'-CATALOG-DETAIL-PRODUCT-ANALOG',
+    ];
+    if (!empty($arResult['PROPERTIES']['PRODUCT_ANALOG_FILTER']['VALUE'])) {
+        $arResult['PRODUCT_ANALOG_FILTER'] = $arResult['PROPERTIES']['PRODUCT_ANALOG_FILTER']['VALUE'];
+    }
+
+    if (isset($arResult['OFFERS'])) {
+        unset($arResult['OFFERS']);
+    }
+}
+
+$bShowSKU = $arParams['TYPE_SKU'] !== 'TYPE_2' && !$arResult['PRODUCT_ANALOG'];
+$arResult['HAS_SKU2'] = !$bShowSKU && $arResult['OFFERS'];
+
+if ($arResult['OFFERS']) {
+	if ($bShowSKU) {
+		$arSKU = (array)CCatalogSKU::GetInfoByProductIBlock($arParams['IBLOCK_ID']);
+
+		if (!empty($arSKU) && is_array($arSKU)) {
+			/* get sku tree props */
+			$arParams['SKU_IBLOCK_ID'] = $arSKU['IBLOCK_ID'];
+			$arParams['LINK_SKU_PROP_CODE'] = 'CML2_LINK';
+			$arParams['USE_CATALOG_SKU'] = true;
+
+			$bUseModuleProps = \Bitrix\Main\Config\Option::get("iblock", "property_features_enabled", "N") === "Y";
+			if ($bUseModuleProps) {
+				$arParams['OFFERS_CART_PROPERTIES'] = \Bitrix\Catalog\Product\PropertyCatalogFeature::getBasketPropertyCodes($arSKU['IBLOCK_ID'], ['CODE' => 'Y']);
+				if ($featureProps = \Bitrix\Catalog\Product\PropertyCatalogFeature::getOfferTreePropertyCodes($arSKU["IBLOCK_ID"], array('CODE' => 'Y'))) {
+					$arParams['SKU_TREE_PROPS'] = $featureProps;
+				}
+				if ($featureProps = \Bitrix\Iblock\Model\PropertyFeature::getDetailPageShowPropertyCodes($arSKU["IBLOCK_ID"], array('CODE' => 'Y'))) {
+					$arParams['SKU_PROPERTY_CODE'] = $featureProps;
+				}
+			}
+
+			if (!$arParams['SKU_TREE_PROPS'] && isset($arParams['OFFERS_CART_PROPERTIES']) && is_array($arParams['OFFERS_CART_PROPERTIES'])) {
+				$arParams['SKU_TREE_PROPS'] = $arParams['OFFERS_CART_PROPERTIES'];
+			}
+
+			$obSKU = new TSolution\SKU($arParams);
+			if ($arParams['SKU_IBLOCK_ID'] && $arParams['SKU_TREE_PROPS']) {
+				$arTreeFilter = [
+					'=IBLOCK_ID' => $arParams['SKU_IBLOCK_ID'],
+					'CODE' => $arParams['SKU_TREE_PROPS']
+				];
+				$obSKU->getTreePropsByFilter($arTreeFilter, $arSKU);
+				$arResult['SKU_CONFIG'] = $obSKU->config;
+				$arResult['SKU_CONFIG']['ADD_PICT_PROP'] = $arParams['ADD_PICT_PROP'];
+				$arResult['SKU_CONFIG']['SHOW_GALLERY'] = $arParams['SHOW_GALLERY'];
+				$arResult['SKU_CONFIG']['SHOW_SKU_DESCRIPTION'] = $arParams['SHOW_SKU_DESCRIPTION'];
+
+
+				// set only existed values for props
+				$obSKU->setItems([0 => ['OFFERS' => $arResult['OFFERS']]]);
+				$obSKU->getNeedValues();
+				$obSKU->getPropsValue();
+			}
+			/* */
+
+			/* get SKU for item */
+			if ($arParams['OID']) {
+				$obSKU->setSelectedItem($arParams['OID']);
+			}
+
+			$obSKU->setItems($arResult['OFFERS']);
+			$obSKU->getMatrix();
+
+			$arResult['SKU'] = [
+				'CURRENT' => $obSKU->currentItem,
+				'OFFERS' => $obSKU->items,
+				'PROPS' => $obSKU->treeProps,
+				'SKU_GROUP' => false,
+				'SKU_GROUP_VALUES' => [],
+			];
+			/* */
+
+			$arOfferIDs = array_column($arResult['SKU']['OFFERS'], 'ID');
+
+			if ($arOfferIDs && CBXFeatures::IsFeatureEnabled('CatCompleteSet') && TSolution::isSaleMode()) {
+				$offerSet = array_fill_keys($arOfferIDs, false);
+				$rsSets =  CCatalogProductSet::getList(
+					[],
+					[
+						'@OWNER_ID' => $arOfferIDs,
+						'=SET_ID' => 0,
+						'=TYPE' => CCatalogProductSet::TYPE_GROUP
+					],
+					false,
+					false,
+					['ID', 'OWNER_ID']
+				);
+
+				while ($arSet = $rsSets->Fetch()) {
+					$arSet['OWNER_ID'] = (int)$arSet['OWNER_ID'];
+					$offerSet[$arSet['OWNER_ID']] = true;
+					$arResult['SKU']['SKU_GROUP'] = true;
+				}
+
+				if ($offerSet[$arResult['ID']]) {
+					foreach ($offerSet as &$setOfferValue) {
+						if ($setOfferValue === false) {
+							$setOfferValue = true;
+						}
+					}
+					unset($setOfferValue);
+					unset($offerSet[$arResult['ID']]);
+				}
+
+				if ($arResult['SKU']['SKU_GROUP']) {
+					$offerSet = array_filter($offerSet);
+					$arResult['SKU']['SKU_GROUP_VALUES'] = array_keys($offerSet);
+				}
+			}
+
+			foreach ($arResult['SKU']['PROPS'] as $key => $prop) {
+				if ($prop['SHOW_MODE'] === 'text') {
+					$arResult['SKU']['PROPS'][$key]['FONT'] = 16;
+				}
+			}
+		}
+	}
+
+	TSolution\Product\Prices::fixOffersMinPrice($arResult['OFFERS'], $arParams);
+	$arResult['MIN_PRICE'] = TSolution\Product\Price::getMinPriceFromOffersExt($arResult['OFFERS']);
+	$arResult['MAX_PRICE'] = TSolution\Product\Price::getMaxPriceFromOffersExt($arResult['OFFERS']);
+}
+
+/* main gallery */
+$arResult['DETAIL_PICTURE'] = $arResult['DETAIL_PICTURE'] ?: $arResult['PREVIEW_PICTURE'];
+
+$arResult['GALLERY'] = TSolution\Functions::getSliderForItem([
+	'TYPE' => 'catalog_block',
+	'PROP_CODE' => $arParams['ADD_PICT_PROP'],
+	// 'ADD_DETAIL_SLIDER' => false,
+	'ITEM' => $arResult,
+	'PARAMS' => $arParams,
+]);
+
+/* big gallery */
+if ($arParams['SHOW_BIG_GALLERY'] === 'Y') {
+	$arResult['BIG_GALLERY'] = array();
+
+	if (
+		$arParams['BIG_GALLERY_PROP_CODE'] &&
+		isset($arResult['PROPERTIES'][$arParams['BIG_GALLERY_PROP_CODE']]) &&
+		$arResult['PROPERTIES'][$arParams['BIG_GALLERY_PROP_CODE']]['VALUE']
+	) {
+		foreach ($arResult['PROPERTIES'][$arParams['BIG_GALLERY_PROP_CODE']]['VALUE'] as $img) {
+			$arPhoto = CFile::GetFileArray($img);
+
+			$alt = $arPhoto['DESCRIPTION'] ?: ($arPhoto['ALT'] ?: $arResult['NAME']);
+			$title = $arPhoto['DESCRIPTION'] ?: ($arPhoto['TITLE'] ?: $arResult['NAME']);
+
+			$arResult['BIG_GALLERY'][] = array(
+				'DETAIL' => $arPhoto,
+				'PREVIEW' => CFile::ResizeImageGet($img, array('width' => 1500, 'height' => 1500), BX_RESIZE_IMAGE_PROPORTIONAL_ALT, true),
+				'THUMB' => CFile::ResizeImageGet($img, array('width' => 60, 'height' => 60), BX_RESIZE_IMAGE_EXACT, true),
+				'TITLE' => $title,
+				'ALT' => $alt,
+			);
+		}
+	}
+}
+
+/* brand item */
+$arBrand = array();
+if (
+	strlen($arResult["DISPLAY_PROPERTIES"]["BRAND"]["VALUE"]) &&
+	$arResult["PROPERTIES"]["BRAND"]["LINK_IBLOCK_ID"]
+) {
+	$arBrand = TSolution\Cache::CIBLockElement_GetList(
+		array(
+			'CACHE' => array(
+				"MULTI" => "N",
+				"TAG" => TSolution\Cache::GetIBlockCacheTag($arResult["PROPERTIES"]["BRAND"]["LINK_IBLOCK_ID"])
+			)
+		),
+		array(
+			"IBLOCK_ID" => $arResult["PROPERTIES"]["BRAND"]["LINK_IBLOCK_ID"],
+			"ACTIVE" => "Y",
+			"ID" => $arResult["DISPLAY_PROPERTIES"]["BRAND"]["VALUE"]
+		),
+		false,
+		false,
+		array("ID", "NAME", "CODE", "PREVIEW_TEXT", "PREVIEW_TEXT_TYPE", "DETAIL_TEXT", "DETAIL_TEXT_TYPE", "PREVIEW_PICTURE", "DETAIL_PICTURE", "DETAIL_PAGE_URL", "PROPERTY_SITE")
+	);
+	if ($arBrand) {
+		$arBrand['CATALOG_PAGE_URL'] = $arResult['SECTION']['SECTION_PAGE_URL'].'filter/brand-is-'.$arBrand['CODE'].'/apply/';
+		if (TSolution::isSmartSeoInstalled() && class_exists('\Aspro\Smartseo\General\Smartseo')) {
+			$arBrand['CATALOG_PAGE_URL'] = \Aspro\Smartseo\General\Smartseo::replaceRealUrlByNew($arBrand['CATALOG_PAGE_URL']);
+		}
+		$picture = ($arBrand["PREVIEW_PICTURE"] ? $arBrand["PREVIEW_PICTURE"] : $arBrand["DETAIL_PICTURE"]);
+		if ($picture) {
+			$arBrand["IMAGE"] = CFile::ResizeImageGet($picture, array("width" => 200, "height" => 40), BX_RESIZE_IMAGE_PROPORTIONAL, true);
+			$arBrand["IMAGE"]["ALT"] = $arBrand["IMAGE"]["TITLE"] = $arBrand["NAME"];
+
+			if ($arBrand["DETAIL_PICTURE"]) {
+				$arBrand["IMAGE"]["INFO"] = CFile::GetFileArray($arBrand["DETAIL_PICTURE"]);
+
+				$ipropValues = new \Bitrix\Iblock\InheritedProperty\ElementValues($arBrand["IBLOCK_ID"], $arBrand["ID"]);
+				$arBrand["IMAGE"]["IPROPERTY_VALUES"] = $ipropValues->getValues();
+				if ($arBrand["IMAGE"]["IPROPERTY_VALUES"]["ELEMENT_DETAIL_PICTURE_FILE_TITLE"])
+					$arBrand["IMAGE"]["TITLE"] = $arBrand["IMAGE"]["IPROPERTY_VALUES"]["ELEMENT_DETAIL_PICTURE_FILE_TITLE"];
+				if ($arBrand["IMAGE"]["IPROPERTY_VALUES"]["ELEMENT_DETAIL_PICTURE_FILE_ALT"])
+					$arBrand["IMAGE"]["ALT"] = $arBrand["IMAGE"]["IPROPERTY_VALUES"]["ELEMENT_DETAIL_PICTURE_FILE_ALT"];
+				if ($arBrand["IMAGE"]["INFO"]["DESCRIPTION"])
+					$arBrand["IMAGE"]["ALT"] = $arBrand["IMAGE"]["TITLE"] = $arBrand["IMAGE"]["INFO"]["DESCRIPTION"];
+			}
+		}
+	}
+}
+$arResult["BRAND_ITEM"] = $arBrand;
+
+/*complect*/
+$arResult["SET_ITEMS_QUANTITY"] = $arResult["SET_ITEMS"] = [];
+
+if (TSolution::isSaleMode()) {
+	if ($arParams["SHOW_KIT_PARTS"] == "Y" && $arResult["CATALOG_TYPE"] == CCatalogProduct::TYPE_SET) {
+		$arSetItems = $arSetItemsOtherID = [];
+		$arSets = CCatalogProductSet::getAllSetsByProduct($arResult["ID"], 1);
+
+		if (is_array($arSets) && !empty($arSets)) {
+			foreach ($arSets as $key => $set) {
+				\Bitrix\Main\Type\Collection::sortByColumn($set["ITEMS"], array('SORT' => SORT_ASC));
+
+				foreach ($set["ITEMS"] as $i => $val) {
+					$arSetItems[] = $val["ITEM_ID"];
+					$arSetItemsOtherID[$val["ITEM_ID"]]["SORT"] = $val["SORT"];
+					$arSetItemsOtherID[$val["ITEM_ID"]]["QUANTITY"] = $val["QUANTITY"];
+				}
+			}
+		}
+
+		if (!empty($arSetItems)) {
+			$db_res = CIBlockElement::GetList(["SORT" => "ASC"], ["ID" => $arSetItems], false, false, ['ID', 'PROPERTY_CML2_LINK']);
+
+			while ($res = $db_res->GetNext()) {
+
+				if($res['PROPERTY_CML2_LINK_VALUE']) {
+					$res['OFFER_ID'] = $res['ID'];
+				}
+
+				$res["SORT"] = $arSetItemsOtherID[$res["ID"]]["SORT"];
+				$res["QUANTITY"] = $arSetItemsOtherID[$res["ID"]]["QUANTITY"];
+				$res['ID'] = $res['PROPERTY_CML2_LINK_VALUE'] ?? $res['ID'];
+				$arResult["SET_ITEMS"][$res['ID']] = $res;
+			}
+
+			\Bitrix\Main\Type\Collection::sortByColumn($arResult["SET_ITEMS"], ['SORT' => SORT_ASC], false, false, true);
+		}
+	}
+}
+
+// sef folder to include files
+$arResult['INCLUDE_FOLDER_PATH'] = rtrim($arParams["SEF_FOLDER"] ?? dirname($_SERVER['REAL_FILE_PATH']), '/');
+
+// include text
+ob_start();
+$APPLICATION->IncludeFile($arResult['INCLUDE_FOLDER_PATH']."/index_garanty.php", array(), array("MODE" => "html", "NAME" => GetMessage('TITLE_INCLUDE')));
+$arResult['INCLUDE_CONTENT'] = ob_get_clean();
+
+// price text
+ob_start();
+$APPLICATION->IncludeFile($arResult['INCLUDE_FOLDER_PATH']."/index_price.php", array(), array("MODE" => "html", "NAME" => GetMessage('TITLE_PRICE')));
+$arResult['INCLUDE_PRICE'] = ob_get_clean();
+
+// ask question text
+ob_start();
+$APPLICATION->IncludeFile($arResult['INCLUDE_FOLDER_PATH']."/index_ask.php", array(), array("MODE" => "html", "NAME" => GetMessage('TITLE_ASK')));
+$arResult['INCLUDE_ASK'] = ob_get_clean();
+
+// dops tab
+if ($arParams['SHOW_DOPS'] === 'Y') {
+	$this->SetViewTarget('PRODUCT_DOPS_INFO');
+	$APPLICATION->IncludeFile($arResult['INCLUDE_FOLDER_PATH']."/index_dops.php", array(), array("MODE" => "html", "NAME" => GetMessage('T_DOPS')));
+	$this->EndViewTarget();
+}
+
+// delivery tab
+if ($arParams['SHOW_DELIVERY'] === 'Y') {
+	$this->SetViewTarget('PRODUCT_DELIVERY_INFO');
+	$APPLICATION->IncludeFile($arResult['INCLUDE_FOLDER_PATH']."/index_delivery.php", array(), array("MODE" => "html", "NAME" => GetMessage('T_DELIVERY')));
+	$this->EndViewTarget();
+}
+
+// payment tab
+if ($arParams['SHOW_PAYMENT'] === 'Y') {
+	$this->SetViewTarget('PRODUCT_PAYMENT_INFO');
+	$APPLICATION->IncludeFile($arResult['INCLUDE_FOLDER_PATH']."/index_payment.php", array(), array("MODE" => "html", "NAME" => GetMessage('T_PAYMENT')));
+	$this->EndViewTarget();
+}
+
+// how to buy tab
+if ($arParams['SHOW_BUY'] === 'Y') {
+	$this->SetViewTarget('PRODUCT_BUY_INFO');
+	$APPLICATION->IncludeFile($arResult['INCLUDE_FOLDER_PATH']."/index_buy.php", array(), array("MODE" => "html", "NAME" => GetMessage('T_BUY')));
+	$this->EndViewTarget();
+}
+
+$arResult['CHARACTERISTICS'] = $arResult['VIDEO'] = $arResult['VIDEO_IFRAME'] = $arResult['POPUP_VIDEO'] = $arResult['TIZERS'] = array();
+$arResult['GALLERY_SIZE'] = $arParams['GALLERY_SIZE'];
+
+/* docs property code */
+$docsProp = $arParams['DETAIL_DOCS_PROP'] ? $arParams['DETAIL_DOCS_PROP'] : 'DOCUMENTS';
+
+// get display properties
+$arDetailPageShowProps = \Bitrix\Iblock\Model\PropertyFeature::getDetailPageShowPropertyCodes($arParams['IBLOCK_ID'], array('CODE' => 'Y'));
+if ($arResult['SECTION']) {
+	$arSectionSelect = array(
+		'UF_SECTION_TIZERS',
+		'UF_TABLE_SIZES',
+		'UF_HELP_TEXT',
+	);
+
+	if ($arDetailPageShowProps === null) {
+		$arDetailPageShowProps = array();
+	}
+
+	if (
+		in_array($docsProp, $arParams['PROPERTY_CODE']) ||
+		in_array($docsProp, $arDetailPageShowProps)
+	) {
+		$arSectionSelect[] = 'UF_FILES';
+	}
+
+	if (
+		in_array('POPUP_VIDEO', $arParams['PROPERTY_CODE']) ||
+		in_array('POPUP_VIDEO', $arDetailPageShowProps)
+	) {
+		$arSectionSelect[] = 'UF_POPUP_VIDEO';
+	}
+
+	$arInherite = TSolution::getSectionInheritedUF(array(
+		'sectionId' => $arResult['IBLOCK_SECTION_ID'],
+		'iblockId' => $arParams['IBLOCK_ID'],
+		'select' => $arSectionSelect,
+		'filter' => array(
+			'GLOBAL_ACTIVE' => 'Y',
+		),
+	));
+
+	if ($arInherite['UF_SECTION_TIZERS']) {
+		$arResult['TIZERS'] = $arInherite['UF_SECTION_TIZERS'];
+	}
+
+	if ($arInherite['UF_HELP_TEXT']) {
+		$arResult['INCLUDE_CONTENT'] = $arInherite['UF_HELP_TEXT'];
+	}
+
+	if ($arInherite['UF_POPUP_VIDEO']) {
+		$arResult['POPUP_VIDEO'] = $arInherite['UF_POPUP_VIDEO'];
+	}
+
+	if ($arInherite['UF_FILES']) {
+		$arResult['DOCUMENTS'] = $arInherite['UF_FILES'];
+	}
+
+	if ($arInherite['UF_TABLE_SIZES']) {
+		$rsTypes = CUserFieldEnum::GetList(array(), array("ID" => $arInherite['UF_TABLE_SIZES']));
+
+		if ($arType = $rsTypes->GetNext())
+			$tableSizes = $arType['XML_ID'];
+
+		if ($tableSizes) {
+			$arResult["SIZE_PATH"] = SITE_DIR."/include/table_sizes/detail_".strtolower($tableSizes).".php";
+			$arResult["SIZE_PATH"] = str_replace("//", "/", $arResult["SIZE_PATH"]);
+		}
+	}
+}
+
+$arCrossLinkedProps = [
+	'LINK_SALE',
+	'LINK_ARTICLES',
+	'SERVICES',
+	'LINK_FAQ',
+];
+
+foreach ($arCrossLinkedProps as $prop) {
+	if (
+		(in_array($prop, (array)$arDetailPageShowProps) || in_array($prop, $arParams)) &&
+		!isset($arResult['DISPLAY_PROPERTIES'][$prop])
+	) {
+		$arResult['DISPLAY_PROPERTIES'][$prop] = true;
+	}
+}
+
+if ($arResult['DISPLAY_PROPERTIES']['LINK_TIZERS']['VALUE']) {
+	$arResult['TIZERS'] = $arResult['DISPLAY_PROPERTIES']['LINK_TIZERS']['VALUE'];
+}
+
+if ($arResult['PROPERTIES']['HELP_TEXT']['~VALUE']) {
+	$arResult['INCLUDE_CONTENT'] = $arResult['PROPERTIES']['HELP_TEXT']['~VALUE'];
+}
+
+if (
+	array_key_exists($docsProp, $arResult["DISPLAY_PROPERTIES"]) &&
+	is_array($arResult["DISPLAY_PROPERTIES"][$docsProp]) &&
+	$arResult["DISPLAY_PROPERTIES"][$docsProp]["VALUE"]
+) {
+	foreach ($arResult['DISPLAY_PROPERTIES'][$docsProp]['VALUE'] as $key => $value) {
+		if (!intval($value)) {
+			unset($arResult['DISPLAY_PROPERTIES'][$docsProp]['VALUE'][$key]);
+		}
+	}
+
+	if ($arResult['DISPLAY_PROPERTIES'][$docsProp]['VALUE']) {
+		$arResult['DOCUMENTS'] = array_values($arResult['DISPLAY_PROPERTIES'][$docsProp]['VALUE']);
+	}
+}
+
+if ($arResult['DISPLAY_PROPERTIES']) {
+	if (is_array($arResult['PROPERTIES']['CML2_ARTICLE']['VALUE']) && $arResult['DISPLAY_PROPERTIES']['CML2_ARTICLE']) {
+		$arResult['DISPLAY_PROPERTIES']['CML2_ARTICLE']['VALUE'] = reset($arResult['DISPLAY_PROPERTIES']['CML2_ARTICLE']['VALUE']);
+	}
+
+	$arResult['CHARACTERISTICS'] = TSolution::PrepareItemProps($arResult['DISPLAY_PROPERTIES']);
+    TSolution\LinkableProperty::resolve($arResult['CHARACTERISTICS'], $arResult['IBLOCK_ID'], $arResult['IBLOCK_SECTION_ID']);
+
+	$arResult['TOP_CHARACTERISTICS'] = array_slice($arResult['CHARACTERISTICS'], 0, $arParams['VISIBLE_PROP_COUNT']);
+
+	foreach ($arResult['DISPLAY_PROPERTIES'] as $PCODE => $arProp) {
+		if (
+			$arProp["VALUE"] ||
+			strlen($arProp["VALUE"])
+		) {
+			if ($arProp['USER_TYPE'] === 'video') {
+				if (count($arProp['PROPERTY_VALUE_ID']) >= 1) {
+					foreach ($arProp['VALUE'] as $val) {
+						if ($val['path']) {
+							$arResult['VIDEO'][] = $val;
+						}
+					}
+				} elseif ($arProp['VALUE']['path']) {
+					$arResult['VIDEO'][] = $arProp['VALUE'];
+				}
+			} elseif ($arProp['CODE'] === 'VIDEO_YOUTUBE') {
+				$arProp['VIDEO_FRAMES'] = TSolution\Video\Iframe::getVideoBlock($arProp['~VALUE']);
+				if ($arProp['VIDEO_FRAMES']) {
+					$arResult['VIDEO'] = array_merge($arResult['VIDEO'], $arProp['VIDEO_FRAMES']);
+				}
+			} elseif ($arProp['CODE'] === 'POPUP_VIDEO') {
+				$arResult['POPUP_VIDEO'] = $arProp["VALUE"];
+			}
+		}
+	}
+}
