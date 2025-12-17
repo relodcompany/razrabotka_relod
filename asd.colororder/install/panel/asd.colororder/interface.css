@@ -1,0 +1,36 @@
+/*  mark
+------------------------------------------------ */
+
+		.mark {
+			width: 34px;
+			height: 16px;
+			background: url(mark.png) 0 -17px no-repeat;
+			margin: 0 0 4px 0;
+			padding: 0;
+			list-style-type:none;
+			font: 0/0 a;
+			text-shadow: none;
+			color: transparent;
+			position: relative;
+			}
+			.mark_type_icon:after {
+				content: '';
+				position: absolute;
+				top: 2px;
+				left: 10px;
+				width: 12px;
+				height: 12px;
+				background: url(mark-icon.png) 0 0 no-repeat;
+				}
+
+		.adm-list-table-row:nth-child(odd) .adm-list-table-cell .mark {
+			background-position: 0 0;
+			}
+		.adm-list-table-row:hover .adm-list-table-cell .mark {
+			background-position: 0 -34px;
+		}
+
+/* mark
+------------------------------------------END--- */
+
+
