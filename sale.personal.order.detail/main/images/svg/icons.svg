@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" class="hidden">
+	<symbol viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" id="payment-16-16" fill="none">
+		<path d="M1 5H12C13.6569 5 15 6.34315 15 8V12C15 13.6569 13.6569 15 12 15H4C2.34315 15 1 13.6569 1 12V5Z" stroke-width="2" stroke-linejoin="round"></path>
+		<path d="M12 1H4C2.34315 1 1 2.34315 1 4V12" stroke-width="2" stroke-linecap="round"></path>
+		<path d="M14 10H9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+	</symbol>
+
+	<symbol viewBox="0 0 16 14" xmlns="http://www.w3.org/2000/svg" id="customer-16-14" fill="none">
+		<path d="M6.84635 9H8.99838C10.7168 9 12.2147 10.1695 12.6315 11.8367C12.7793 12.4276 12.3323 13 11.7232 13H4.12148C3.51239 13 3.06547 12.4276 3.21319 11.8367C3.62998 10.1695 5.1279 9 6.84635 9Z"  stroke-width="2"></path>
+		<circle cx="8" cy="4" r="3" stroke-width="2"></circle>
+	</symbol>
+
+	<symbol viewBox="0 0 16 15" xmlns="http://www.w3.org/2000/svg" id="delivery-16-15" fill="none">
+		<circle cx="4" cy="12" r="2" stroke-width="2"></circle>
+		<circle cx="12" cy="12" r="2" stroke-width="2"></circle>
+		<path d="M9 4H11.9296C12.5983 4 13.2228 4.3342 13.5937 4.8906L14.6641 6.49615C14.8831 6.82469 15 7.2107 15 7.60555V11C15 11.5523 14.5523 12 14 12V12" stroke-width="2" stroke-linecap="round"></path>
+		<path d="M2 12V12C1.44772 12 1 11.5523 1 11V3C1 1.89543 1.89543 1 3 1H7C8.10457 1 9 1.89543 9 3V7M6 12H10" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+	</symbol>
+
+	<symbol viewBox="0 0 10 14" xmlns="http://www.w3.org/2000/svg" id="showonmap-16-14">
+		<path fill-rule="evenodd" clip-rule="evenodd" d="M10 5.09375C10 6.40373 9.49622 7.59606 8.67184 8.48755L4.88411 13.0328C4.58473 13.3921 4 13.1804 4 12.7127V9.99373C1.71776 9.53046 0 7.51271 0 5.09375C0 2.33233 2.23858 0.09375 5 0.09375C7.76142 0.09375 10 2.33233 10 5.09375ZM5 2.09375C6.65685 2.09375 8 3.4369 8 5.09375C8 6.7506 6.65685 8.09375 5 8.09375C3.34315 8.09375 2 6.7506 2 5.09375C2 3.4369 3.34315 2.09375 5 2.09375Z"/>
+	</symbol>
+
+	<symbol viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" id="description-16-16">
+		<path fill-rule="evenodd" clip-rule="evenodd" d="M0 7C0 3.13401 3.13401 0 7 0H9C12.866 0 16 3.13401 16 7V9C16 12.866 12.866 16 9 16H7C3.13401 16 0 12.866 0 9V7ZM7 2C4.23858 2 2 4.23858 2 7V9C2 11.7614 4.23858 14 7 14H9C11.7614 14 14 11.7614 14 9V7C14 4.23858 11.7614 2 9 2H7ZM8 12C8.55229 12 9 11.5523 9 11V8C9 7.44772 8.55229 7 8 7C7.44772 7 7 7.44772 7 8V11C7 11.5523 7.44772 12 8 12ZM8 6C7.44772 6 7 5.55228 7 5C7 4.44772 7.44772 4 8 4C8.55229 4 9 4.44772 9 5C9 5.55228 8.55229 6 8 6Z"/>
+	</symbol>
+</svg>
