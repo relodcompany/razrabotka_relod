@@ -1,0 +1,6 @@
+# Файл со списком SOCKS5 прокси (по одному на строку)
+# Формат: socks5://username:password@host:port
+# Или без авторизации: socks5://host:port
+
+# Примеры:
+# socks5://user301606:zdhf75@217.25.1.166:16476

@@ -1,0 +1,10 @@
+requests[socks]==2.31.0
+beautifulsoup4==4.12.2
+openpyxl==3.1.2
+pandas==2.3.0
+python-dotenv==1.0.0
+APScheduler==3.10.4
+PySocks==1.7.1
+lxml==4.9.3
+playwright==1.49.0
+brotli
